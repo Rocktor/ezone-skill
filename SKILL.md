@@ -159,7 +159,7 @@ results = api.batch_create_cards(project_id, cards)
 
 ### API 客户端
 
-使用 `/Users/rongtao.wang/UML_Project/MJ_CBB_AIAgent功能/ezone_api.py`
+使用 `./ezone_api.py`
 
 ```python
 from ezone_api import EZoneAPI
@@ -704,7 +704,7 @@ pip install requests
 
 ### 文件
 
-- API 客户端：`/Users/rongtao.wang/UML_Project/MJ_CBB_AIAgent功能/ezone_api.py`
+- API 客户端：`./ezone_api.py`
 
 ## 质量检查清单
 
@@ -721,6 +721,6 @@ pip install requests
 
 | 文件 | 用途 |
 |------|------|
-| `/Users/rongtao.wang/UML_Project/MJ_CBB_AIAgent功能/ezone_api.py` | API 客户端 |
+| `./ezone_api.py` | API 客户端 |
 | 本 Skill | EZone 建卡逻辑说明 |
 | https://ezone.matrixback.com/v1/project/doc.html | API 文档 |

@@ -1,6 +1,6 @@
 # EZone Card Creator Skill
 
-Kiro CLI skill for managing cards in [EZone](https://ezone.matrixback.com) (简单云) project management system.
+Claude Code skill for managing cards in [EZone](https://ezone.matrixback.com) (简单云) project management system.
 
 ## Features
 
@@ -10,13 +10,28 @@ Kiro CLI skill for managing cards in [EZone](https://ezone.matrixback.com) (简�
 - Query card approval/review records (BPM workflow)
 - Delete cards (single & batch)
 
+## File Structure
+
+```
+ezone-card-creator/
+├── SKILL.md                    # Skill 定义与使用说明
+├── ezone_api.py                # API 客户端
+├── ezone_api_doc.json          # EZone Swagger/OpenAPI 完整文档 (341 APIs)
+├── generate_api_summaries.py   # API 文档摘要生成脚本
+└── api_summaries/              # 按模块生成的 API 摘要 (27 files)
+    ├── README.md
+    ├── card.md
+    ├── project.md
+    └── ...
+```
+
 ## Installation
 
-Copy `SKILL.md` and `ezone_api.py` to your Kiro skills directory:
+Copy the entire directory to your Claude Code skills directory:
 
 ```bash
-mkdir -p ~/.kiro/skills/ezone-card-creator
-cp SKILL.md ezone_api.py ~/.kiro/skills/ezone-card-creator/
+mkdir -p ~/.claude/skills/ezone-card-creator
+cp -r . ~/.claude/skills/ezone-card-creator/
 ```
 
 ## Token Configuration

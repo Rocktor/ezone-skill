@@ -1,30 +1,21 @@
 ---
-name: ezone-card-creator
-description: 在简单云(EZone)项目管理系统中自动创建卡片。支持创建 Task、Story、Bug、Feature 等类型的卡片，可批量创建。
+name: ezone-skill
+version: 2.0.0
+description: 在简单云(EZone)项目管理系统中管理卡片。支持创建、状态扭转、查询等操作。
 ---
 
-# EZone 卡片创建 Skill
+# EZone 卡片管理 Skill
+
+> 版本：v2.0.0
 
 ## 触发条件
 
 当用户提到以下内容时自动使用此技能：
-- 在简单云建卡
-- 创建 EZone 卡片
-- 建卡片
-- 创建任务/Story/Bug
-- 批量建卡
-- 查询卡片状态历史
-- 卡片状态变更记录
-- 卡片什么时候创建的
-- 谁改了卡片状态
-- 卡片流转历史
-- 删除卡片
-- 批量删除卡片
-- 清理项目卡片
-- 查询审核记录
-- 审核状态
-- 审批流程
-- 谁审批的
+- **扭转简单云状态 / 改简单云状态 / 扭转ezone状态 / 改ezone状态 / 卡片状态改为 / 转为待开发 / 转为开发中**
+- 在简单云建卡 / 创建 EZone 卡片 / 建卡片 / 创建任务/Story/Bug / 批量建卡
+- 查询卡片状态历史 / 卡片流转历史 / 查询审核记录 / 审批流程
+- 删除卡片 / 批量删除卡片
+- **搜索卡片 / 查找PRD / 统计卡片 / 跨项目搜索 / 按创建者搜索 / 按时间范围搜索**
 
 ## 功能特性
 
@@ -51,7 +42,27 @@ description: 在简单云(EZone)项目管理系统中自动创建卡片。支持
 | 进行中 | `processing` | 正在处理 |
 | 已完成 | `closed` | 已关闭 |
 
-### 3. 常用项目
+### 3. 完整状态列表（国际化项目为例）
+
+不同项目的状态列表不同，可通过 `get_project_schema(project_id)` 获取。
+
+| 状态码 | 状态名 |
+|--------|--------|
+| `open` | 新建 |
+| `custom_1` | MRD立项 |
+| `custom_20` | MRD评审通过 |
+| `custom_2` | 需求分析 |
+| `custom_21` | 需求评审通过 |
+| `custom_5` | 待开发 |
+| `custom_6` | 技术分析 |
+| `custom_7` | 技术评审通过 |
+| `custom_8` | 开发中 |
+| `custom_11` | 待测试 |
+| `custom_13` | 测试中 |
+| `custom_14` | 测试完成 |
+| `custom_23` | 已完成 |
+
+### 4. 常用项目
 
 | 项目Key | 项目名称 | 项目ID |
 |---------|---------|--------|
@@ -62,62 +73,152 @@ description: 在简单云(EZone)项目管理系统中自动创建卡片。支持
 | VIP | 墨迹会员业务 | 860012503123472384 |
 | TobProject | TOB项目管理 | 991954924693643264 |
 
-## API 认证
+## 首次使用配置（Token 引导）
 
-### 访问令牌配置
+每个用户需要使用**自己的 Token**，不能共用他人 Token。
 
-每个用户需要配置自己的 Token，按优先级读取：
+### 检查 Token 是否已配置
 
-| 优先级 | 配置方式 | 说明 |
-|-------|---------|------|
-| 1 | 环境变量 `EZONE_TOKEN` | `export EZONE_TOKEN=your_token` |
-| 2 | 用户配置文件 `~/.ezone_token` | `echo 'your_token' > ~/.ezone_token` |
-| 3 | 项目配置文件 `.ezone_token` | 项目根目录下的配置文件 |
+执行任何操作前，先检查用户是否有 Token：
 
-### 获取 Token
+```python
+from ezone_api import get_token
+try:
+    token = get_token()
+    # Token 已配置，继续操作
+except ValueError:
+    # Token 未配置，引导用户设置
+    pass
+```
 
-1. 登录 EZone：https://ezone.matrixback.com
-2. 进入：个人设置 > 访问令牌
-3. 创建新令牌并复制
+Token 按以下优先级读取：
+1. 环境变量 `EZONE_TOKEN`
+2. 用户配置文件 `~/.ezone_token`
+3. 项目配置文件 `.ezone_token`
 
-文档：https://ezone.matrixback.com/help/guide/base/personalSetting.html
+### 引导用户配置 Token
 
-### 配置示例
+如果 Token 未配置，告知用户以下步骤：
+
+1. 打开 EZone：https://ezone.matrixback.com
+2. 进入：**个人设置 > 访问令牌**
+3. 创建新令牌，权限勾选：**项目管理 → 读写**（其他权限不需要）
+4. 复制令牌，发给我即可
+
+收到用户的 Token 后，保存到 `~/.ezone_token`：
 
 ```bash
-# 方式1：环境变量（推荐在 ~/.bashrc 或 ~/.zshrc 中配置）
-export EZONE_TOKEN=your_token_here
-
-# 方式2：用户配置文件（推荐）
-echo 'your_token_here' > ~/.ezone_token
-chmod 600 ~/.ezone_token  # 设置权限，仅自己可读
-
-# 方式3：项目配置文件
-echo 'your_token_here' > .ezone_token
-# 注意：添加到 .gitignore 避免提交
+echo 'TOKEN_VALUE' > ~/.ezone_token
+chmod 600 ~/.ezone_token
 ```
 
-### 请求头
+然后继续后续操作。
+
+## 状态扭转工作流程（核心功能）
+
+当用户要求扭转简单云卡片状态时，按以下流程执行：
+
+### 第一步：检查 Token
+
+检查 `~/.ezone_token` 是否存在。如果不存在，按「首次使用配置」引导用户设置。
+
+### 第二步：获取卡片信息
+
+用户需提供卡片标识（如 `mojiMainInternationalization-807`），解析出 projectKey 和 seqNum：
+
+```python
+import sys
+sys.path.insert(0, '{skill_dir}')
+from ezone_api import EZoneAPI, get_token
+
+api = EZoneAPI(token=get_token())
+card_resp = api.get_card_by_key('mojiMainInternationalization', 807)
+card = card_resp['data']['card']
+card_id = card_resp['data']['id']
+```
+
+### 第三步：列出确认项（必须等用户确认后再执行）
+
+将以下信息**连同默认值**展示给用户，等用户确认或修改后再执行：
+
+| 项目 | 默认值 | 说明 |
+|------|--------|------|
+| **卡片** | `{projectKey}-{seqNum}: {title}` | 从 API 获取，展示给用户确认 |
+| **当前状态** | 从卡片信息读取 | 展示当前状态 |
+| **目标状态** | `custom_5`（待开发） | 用户可改为其他状态 |
+| **开始时间** | 今天（当天日期） | 用户可修改 |
+| **结束时间** | **无默认值，用户必填** | 必须由用户提供 |
+| **审批人** | `tongkai.zhao`（Kevin） | 用户可修改 |
+| **产品负责人** | 当前卡片的 owner_users | 用户可修改 |
+| **技术负责人** | 待用户确认 | 用户可修改 |
+
+展示格式示例：
 
 ```
-access_token: <你的令牌>
-x-company-name: moji
-Content-Type: application/json
+请确认以下信息，有需要修改的直接说：
+
+- 卡片：mojiMainInternationalization-807「国际化-新用户注册品牌宣传+隐私页面修改」
+- 当前状态：新建
+- 目标状态：待开发
+- 开始时间：2026-03-13（今天）
+- 结束时间：❓ 请提供
+- 审批人：tongkai.zhao（Kevin）
+- 产品负责人：yizhuo.liu
+- 技术负责人：❓ 请提供
+
+确认无误后我来执行。
 ```
 
-## 工作流程
+**重要：必须等用户确认后再执行，不要自动执行。**
+
+### 第四步：执行状态扭转
+
+用户确认后，按以下顺序执行：
+
+```python
+from datetime import date
+
+# 1. 先填充必填字段
+api.update_card_fields(card_id, {
+    "start_date": EZoneAPI.date_to_timestamp("2026-03-13"),
+    "end_date": EZoneAPI.date_to_timestamp("2026-03-19"),
+    "custom_1_keyword": ["yizhuo.liu"],      # 产品负责人
+    "custom_2_keyword": ["tech.lead"],       # 技术负责人
+})
+
+# 2. 再扭转状态（自动处理审批流）
+result = api.change_card_status(
+    card_id=card_id,
+    status="custom_5",                        # 待开发
+    approver_usernames=["tongkai.zhao"]       # 审批人 Kevin
+)
+```
+
+### 第五步：返回结果并提醒
+
+```
+操作完成：
+- 字段更新：开始时间 2026-03-13，结束时间 2026-03-19 ✅
+- 状态扭转：新建 → 待开发，审批已提交（审批人：tongkai.zhao）✅
+- 卡片链接：https://ezone.matrixback.com/project/{projectKey}/cardDetail/{cardId}
+
+我已经完成状态扭转，记得在简单云评论区上传评审截图哦~
+```
+
+**重要：每次状态扭转完成后，必须附带提醒用户上传评审截图。**
+
+### 状态扭转注意事项
+
+- 错误码 `5010`：缺少必填字段 → 先补充字段再扭转
+- 错误码 `5011`：需要走审批流 → `change_card_status()` 会自动处理
+- 错误码 `5013`：审批中 → 卡片已有进行中的审批，需等待或取消
+- 不同项目的状态列表不同，可通过 `get_project_schema(project_id)` 获取
+
+## 卡片创建工作流程
 
 ### 第一步：确认项目
 
 询问用户要在哪个项目下创建卡片，或根据上下文自动识别。
-
-```python
-# 获取项目列表
-from ezone_api import EZoneAPI
-
-api = EZoneAPI(token="YOUR_TOKEN")
-projects = api.list_projects()
-```
 
 ### 第二步：收集卡片信息
 
@@ -131,7 +232,6 @@ projects = api.list_projects()
 ### 第三步：创建卡片
 
 ```python
-# 创建单个卡片
 result = api.create_card(
     project_id="844795161124806656",
     card_type="task",
@@ -139,20 +239,12 @@ result = api.create_card(
     content="任务描述",
     status="open"
 )
-
-# 批量创建
-cards = [
-    {"type": "story", "title": "Story 1", "content": "描述1"},
-    {"type": "task", "title": "Task 1", "content": "描述2", "parent_id": "xxx"},
-]
-results = api.batch_create_cards(project_id, cards)
 ```
 
 ### 第四步：返回结果
 
 返回创建成功的卡片信息和链接：
-- 卡片ID
-- 卡片序号
+- 卡片ID、卡片序号
 - 卡片链接：`https://ezone.matrixback.com/project/{projectKey}/cardDetail/{cardId}`
 
 ## 核心代码模块
@@ -182,6 +274,44 @@ cards = api.search_cards(project_id="xxx", sort_by="create_time", sort_order="de
 # 按序号排序
 cards = api.search_cards(project_id="xxx", sort_by="seq_num", sort_order="asc")
 
+# ========== 高级搜索（Query Builder） ==========
+
+# 带过滤条件搜索（queries 数组为隐式 AND）
+cards = api.search_cards(
+    project_id="xxx",
+    queries=[
+        EZoneAPI.query_eq("type", "story"),                    # 类型=story
+        EZoneAPI.query_in("create_user", ["user1", "user2"]),  # 创建者
+        EZoneAPI.query_between("create_time", start_ts, end_ts),  # 时间范围
+    ]
+)
+
+# 跨项目搜索（搜索用户有权限的所有项目）
+cards = api.search_cards_cross_project(
+    queries=[EZoneAPI.query_eq("type", "story")],
+    page_size=100
+)
+
+# 自动翻页获取全部卡片
+all_cards = api.search_all_cards(
+    project_id="xxx",          # cross_project=False 时必填
+    queries=[EZoneAPI.query_eq("type", "story")],
+    cross_project=False,       # True=跨项目, False=单项目
+    page_size=100,             # 每页条数
+    max_pages=50,              # 安全上限
+    filter_deleted=True        # 自动过滤幽灵记录
+)
+
+# 一站式便捷方法：按创建者+时间范围搜索
+cards = api.search_cards_by_creators_and_time(
+    creators=["yi.chen", "yanshuang.liu", "yizhuo.liu"],
+    date_from="2026-01-31",
+    date_to="2026-02-28",
+    card_type="story",
+    cross_project=True,
+    time_field="create_time"   # 可选 "start_date"、"end_date"
+)
+
 # 创建卡片
 result = api.create_card(
     project_id="xxx",
@@ -203,12 +333,41 @@ api.create_feature(project_id, title, content)
 # 批量创建
 api.batch_create_cards(project_id, cards_list)
 
-# 上传附件到卡片（新增）
+# 上传附件到卡片
 api.upload_attachment(
     card_id="1157325358376181760",
     file_path="/path/to/file.docx",
     description="PRD需求文档"
 )
+
+# ========== 卡片编辑 ==========
+
+# 更新卡片字段（时间、负责人等）
+api.update_card_fields(card_id="xxx", fields={
+    "start_date": api.date_to_timestamp("2026-03-13"),
+    "end_date": api.date_to_timestamp("2026-03-19"),
+    "custom_1_keyword": ["yizhuo.liu"],   # 产品负责人
+    "custom_2_keyword": ["kevin.wei"],    # 技术负责人
+})
+
+# 更新单个字段
+api.update_card_field(card_id="xxx", field="start_date",
+                      value=api.date_to_timestamp("2026-03-13"))
+
+# 更新状态（直接方式，可能返回 5011 需要审批）
+api.update_card_status(card_id="xxx", status="custom_5")
+
+# 更新状态（智能方式，自动处理审批流，推荐）
+api.change_card_status(
+    card_id="xxx",
+    status="custom_5",                       # 目标状态码
+    approver_usernames=["chaoju.liu"]         # 审批人（当需要审批时）
+)
+# 注意：部分状态扭转需要先填充必填字段（如开始/结束时间），再扭转状态
+
+# 日期工具方法
+ts = EZoneAPI.date_to_timestamp("2026-03-13")        # -> "1773331200000"
+ts = EZoneAPI.date_to_timestamp("2026-03-13 10:00:00") # 支持带时间
 ```
 
 ## 使用示例
@@ -233,6 +392,34 @@ api.upload_attachment(
 - 链接: https://ezone.matrixback.com/project/MojiWeather/cardDetail/1154353601293869056
 ```
 
+### 扭转卡片状态
+
+```
+用户: 帮我扭转简单云状态 mojiMainInternationalization-807
+
+助手: 好的，我查到这张卡片的信息了。请确认以下内容：
+
+- 卡片：mojiMainInternationalization-807「国际化-新用户注册品牌宣传+隐私页面修改」
+- 当前状态：新建
+- 目标状态：待开发
+- 开始时间：2026-03-13（今天）
+- 结束时间：❓ 请提供
+- 审批人：tongkai.zhao（Kevin）
+- 产品负责人：yizhuo.liu
+- 技术负责人：❓ 请提供
+
+确认无误后我来执行~
+
+用户: 结束时间3月19号，技术负责人 chaoju.liu，其他没问题
+
+助手: 收到，开始执行...
+
+操作完成：
+- 字段更新：开始 2026-03-13，结束 2026-03-19 ✅
+- 状态扭转：新建 → 待开发，审批已提交（审批人：tongkai.zhao）✅
+- 链接：https://ezone.matrixback.com/project/mojiMainInternationalization/cardDetail/xxx
+```
+
 ### 从 PRD 批量创建卡片
 
 ```
@@ -252,15 +439,75 @@ api.upload_attachment(
 | 功能 | 方法 | 端点 |
 |------|------|------|
 | 项目列表 | POST | `/v1/project/project/project/search?pageNumber=1&pageSize=50&scope=ROLE` |
-| 搜索卡片 | POST | `/v1/project/project/card/searchByProject?projectId={id}` |
+| 搜索卡片(单项目) | POST | `/v1/project/project/card/searchByProject?projectId={id}&pageNumber=1&pageSize=100` |
+| **搜索卡片(跨项目)** | POST | `/v1/project/project/card/searchByMemberProject?pageNumber=1&pageSize=100` |
+| **搜索Query示例** | GET | `/v1/project/project/card/searchQueryExamples` |
 | 卡片详情 | GET | `/v1/project/project/card/{cardId}?projectId={id}` |
 | 按序号获取卡片 | GET | `/v1/project/project/card/{projectKey}-{seqNum}` |
 | 创建卡片 | POST | `/v1/project/project/card?projectId={id}` |
 | **卡片事件历史** | GET | `/v1/project/project/card/{cardId}/event` |
 | **项目Schema** | GET | `/v1/project/project/project/{projectId}/schema` |
 | **卡片审核记录** | GET | `/v1/project/project/card/{cardId}/approval` |
+| **更新卡片状态** | PUT | `/v1/project/project/card/{cardId}/status?status={statusCode}` |
+| **更新卡片字段** | PUT | `/v1/project/project/card/{cardId}/fields` |
+| **更新单个字段** | PUT | `/v1/project/project/card/{cardId}/fields/{field}` |
+| **发起状态审批** | POST | `/v1/project/project/card/{cardId}/status/approval?status={statusCode}` |
+| **获取审批模版** | GET | `/v1/project/project/card/{cardId}/status/approvalTemplate?targetStatus={statusCode}` |
 | **删除单卡片** | DELETE | `/v1/project/project/card/{cardId}?projectId={projectId}` |
 | **批量删除卡片** | POST | `/v1/project/project/card/batch/delete?projectId={projectId}` |
+
+## 高级搜索功能
+
+### Query Builder（搜索过滤条件构造器）
+
+所有 `query_*` 方法返回一个字典，放入 `queries` 列表中传给搜索方法。`queries` 列表中多个条件为**隐式 AND**（API 不支持显式 And/Or 嵌套）。
+
+| 方法 | 说明 | 示例 |
+|------|------|------|
+| `query_eq(field, value)` | 精确匹配 | `query_eq("type", "story")` |
+| `query_not_eq(field, value)` | 不等于 | `query_not_eq("status", "closed")` |
+| `query_in(field, values)` | 多值匹配 | `query_in("create_user", ["a", "b"])` |
+| `query_not_in(field, values)` | 多值排除 | `query_not_in("type", ["bug", "task"])` |
+| `query_between(field, start, end)` | 范围 | `query_between("create_time", ts1, ts2)` |
+| `query_gt/gte/lt/lte(field, value)` | 比较 | `query_gte("create_time", ts)` |
+| `query_exist/not_exist(field)` | 存在性 | `query_exist("start_date")` |
+| `query_contains(field, values)` | 包含文本 | `query_contains("title", "PRD 需求")` |
+| `query_not_contains(field, values)` | 不包含 | `query_not_contains("title", "test")` |
+| `query_keyword(values, fields)` | 关键词搜索 | `query_keyword("登录 注册", ["title"])` |
+
+> **注意**：type 值全部是 **lowercase**（`eq`, `in`, `between` 等），不是 PascalCase。
+
+### 搜索方法对比
+
+| 方法 | 用途 | 分页 |
+|------|------|------|
+| `search_cards(project_id, queries=)` | 单项目搜索 | 手动翻页 |
+| `search_cards_cross_project(queries=)` | 跨项目搜索 | 手动翻页 |
+| `search_all_cards(queries=, cross_project=)` | 自动翻页（最多5000条） | 自动 |
+| `search_cards_by_creators_and_time(...)` | 按创建者+时间一站式搜索 | 自动 |
+
+### 搜索重要注意事项
+
+1. **分页参数必须放在 query params 中**，不能放在请求体中（否则不生效，始终返回10条）
+2. `searchByMemberProject` 无需 projectId，搜索用户有权限的所有项目
+3. `search_all_cards` 自动过滤已删除的幽灵记录（`seq_num is None`）
+4. 常用字段名：`type`, `status`, `create_user`, `create_time`, `owner_users`, `start_date`, `end_date`, `title`, `content`, `project_id`
+
+### 搜索对话示例
+
+```
+用户: 统计2月份各产品经理创建的PRD数量
+
+助手: 我来搜索2月份9位产品经理在所有项目中创建的Story...
+
+搜索结果（2026-01-31 ~ 02-28）:
+| 创建者 | PRD数量 |
+|--------|---------|
+| yizhuo.liu | 8 |
+| yi.chen | 4 |
+| fangchao.zhang | 2 |
+| 合计 | 14 |
+```
 
 ## 卡片删除功能
 

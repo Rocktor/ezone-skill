@@ -160,7 +160,8 @@ class EZoneAPI:
 
     def search_cards(self, project_id: str, page: int = 1,
                      page_size: int = 20, sort_by: str = "last_modify_time",
-                     sort_order: str = "desc", fields: List[str] = None) -> Dict:
+                     sort_order: str = "desc", fields: List[str] = None,
+                     queries: List[Dict] = None) -> Dict:
         """
         搜索项目中的卡片
 
@@ -171,6 +172,7 @@ class EZoneAPI:
             sort_by: 排序字段 (last_modify_time, create_time, seq_num 等)
             sort_order: 排序方向 (desc 降序, asc 升序)
             fields: 返回字段列表
+            queries: 过滤条件列表（隐式 AND），使用 query_* 静态方法构造
 
         Returns:
             卡片列表响应
@@ -180,16 +182,19 @@ class EZoneAPI:
                       "last_modify_user", "create_time", "create_user",
                       "owner_users", "content", "seq_num"]
 
+        body = {
+            "fields": fields,
+            "sorts": [{"field": sort_by, "order": sort_order}]
+        }
+        if queries:
+            body["queries"] = queries
+
         return self._request(
             "POST",
             "/v1/project/project/card/searchByProject",
-            params={"projectId": project_id},
-            json_data={
-                "pageNumber": page,
-                "pageSize": page_size,
-                "fields": fields,
-                "sorts": [{"field": sort_by, "order": sort_order}]
-            }
+            params={"projectId": project_id,
+                    "pageNumber": page, "pageSize": page_size},
+            json_data=body
         )
 
     def create_card(self, project_id: str, card_type: str, title: str,
@@ -319,6 +324,324 @@ class EZoneAPI:
             })
 
         return results
+
+    @staticmethod
+    def date_to_timestamp(date_str: str) -> str:
+        """
+        将日期字符串转换为毫秒时间戳字符串
+
+        Args:
+            date_str: 日期字符串，支持 "YYYY-MM-DD" 或 "YYYY-MM-DD HH:MM:SS"
+
+        Returns:
+            毫秒时间戳字符串
+        """
+        from datetime import datetime
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+            try:
+                dt = datetime.strptime(date_str, fmt)
+                return str(int(dt.timestamp() * 1000))
+            except ValueError:
+                continue
+        raise ValueError(f"无法解析日期: {date_str}，支持格式: YYYY-MM-DD 或 YYYY-MM-DD HH:MM:SS")
+
+    # ==================== Query Builder 静态方法 ====================
+
+    @staticmethod
+    def query_eq(field: str, value: str) -> Dict:
+        """精确匹配 {"type":"eq","field":"type","value":"story"}"""
+        return {"type": "eq", "field": field, "value": value}
+
+    @staticmethod
+    def query_not_eq(field: str, value: str) -> Dict:
+        """不等于"""
+        return {"type": "notEq", "field": field, "value": value}
+
+    @staticmethod
+    def query_in(field: str, values: List[str]) -> Dict:
+        """多值匹配 {"type":"in","field":"create_user","values":["a","b"]}"""
+        return {"type": "in", "field": field, "values": values}
+
+    @staticmethod
+    def query_not_in(field: str, values: List[str]) -> Dict:
+        """多值排除"""
+        return {"type": "notIn", "field": field, "values": values}
+
+    @staticmethod
+    def query_between(field: str, start: str, end: str) -> Dict:
+        """范围匹配 {"type":"between","field":"create_time","start":"ts1","end":"ts2"}"""
+        return {"type": "between", "field": field, "start": start, "end": end}
+
+    @staticmethod
+    def query_gt(field: str, value: str) -> Dict:
+        """大于"""
+        return {"type": "gt", "field": field, "value": value}
+
+    @staticmethod
+    def query_gte(field: str, value: str) -> Dict:
+        """大于等于"""
+        return {"type": "gte", "field": field, "value": value}
+
+    @staticmethod
+    def query_lt(field: str, value: str) -> Dict:
+        """小于"""
+        return {"type": "lt", "field": field, "value": value}
+
+    @staticmethod
+    def query_lte(field: str, value: str) -> Dict:
+        """小于等于"""
+        return {"type": "lte", "field": field, "value": value}
+
+    @staticmethod
+    def query_exist(field: str) -> Dict:
+        """字段存在"""
+        return {"type": "exist", "field": field}
+
+    @staticmethod
+    def query_not_exist(field: str) -> Dict:
+        """字段不存在"""
+        return {"type": "notExist", "field": field}
+
+    @staticmethod
+    def query_contains(field: str, values: str) -> Dict:
+        """包含文本（空格分隔多个词）"""
+        return {"type": "contains", "field": field, "values": values}
+
+    @staticmethod
+    def query_not_contains(field: str, values: str) -> Dict:
+        """不包含文本"""
+        return {"type": "notContains", "field": field, "values": values}
+
+    @staticmethod
+    def query_keyword(values: str, fields: List[str] = None) -> Dict:
+        """关键词搜索（跨字段）"""
+        q = {"type": "keyword", "values": values}
+        if fields:
+            q["fields"] = fields
+        return q
+
+    @staticmethod
+    def get_search_query_examples() -> Dict:
+        """获取搜索 Query 子类型示例（静态参考，无需网络请求）"""
+        return {
+            "eq": {"type": "eq", "field": "type", "value": "story"},
+            "notEq": {"type": "notEq", "field": "type", "value": "bug"},
+            "in": {"type": "in", "field": "create_user", "values": ["a", "b"]},
+            "notIn": {"type": "notIn", "field": "create_user", "values": ["a"]},
+            "between": {"type": "between", "field": "create_time", "start": "ts1", "end": "ts2"},
+            "gt": {"type": "gt", "field": "f1", "value": "1"},
+            "gte": {"type": "gte", "field": "f1", "value": "1"},
+            "lt": {"type": "lt", "field": "f1", "value": "1"},
+            "lte": {"type": "lte", "field": "f1", "value": "1"},
+            "exist": {"type": "exist", "field": "f1"},
+            "notExist": {"type": "notExist", "field": "f1"},
+            "contains": {"type": "contains", "field": "f1", "values": "v1 v2"},
+            "notContains": {"type": "notContains", "field": "f1", "values": "v1 v2"},
+            "keyword": {"type": "keyword", "values": "a b", "fields": ["title", "content"]},
+        }
+
+    def update_card(self, card_id: str, fields: Dict[str, Any]) -> Dict:
+        """
+        更新卡片（通用方法）
+
+        Args:
+            card_id: 卡片 ID
+            fields: 要更新的字段字典，如:
+                {
+                    "title": "新标题",
+                    "content": "新描述",
+                    "start_date": "1710288000000",  # 毫秒时间戳
+                    "end_date": "1710806400000",
+                    "owner_users": ["username"],
+                    "status": "custom_5",
+                    ...
+                }
+
+        Returns:
+            更新结果响应
+        """
+        return self._request(
+            "PUT",
+            f"/v1/project/project/card/{card_id}",
+            json_data=fields
+        )
+
+    def update_card_status(self, card_id: str, status: str) -> Dict:
+        """
+        更新卡片流程状态
+
+        Args:
+            card_id: 卡片 ID
+            status: 目标状态码，常用值:
+                - "open": 新建
+                - "custom_5": 待开发
+                - "custom_8": 开发中
+                - "custom_11": 待测试
+                - "custom_13": 测试中
+                - "custom_14": 测试完成
+                - "custom_23": 已完成
+                （完整状态列表通过 get_project_schema 获取）
+
+        Returns:
+            更新结果响应
+            注意: 错误码 5010 表示需要同时设置其它必填字段
+                  错误码 5011 表示需要发起审批流
+                  错误码 5013 表示审批中
+        """
+        return self._request(
+            "PUT",
+            f"/v1/project/project/card/{card_id}/status",
+            params={"status": status}
+        )
+
+    def submit_status_approval(self, card_id: str, status: str,
+                                stage_id: int, group_name: str,
+                                approver_usernames: List[str]) -> Dict:
+        """
+        发起卡片状态变更审批
+
+        当 update_card_status 返回错误码 5011（需要发起审批流）时使用此方法。
+
+        Args:
+            card_id: 卡片 ID
+            status: 目标状态码
+            stage_id: 审批阶段 ID（从 get_status_approval_template 获取）
+            group_name: 审批用户组名称（如 "研发管理组"）
+            approver_usernames: 审批人用户名列表
+
+        Returns:
+            审批流程响应
+        """
+        return self._request(
+            "POST",
+            f"/v1/project/project/card/{card_id}/status/approval",
+            params={"status": status},
+            json_data={
+                "bpmUserChoosesRequest": {
+                    "userChooses": [
+                        {
+                            "approvalFlowStageId": stage_id,
+                            "approversChoose": [
+                                {
+                                    "approver": group_name,
+                                    "usernames": approver_usernames
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        )
+
+    def get_status_approval_template(self, card_id: str, target_status: str) -> Dict:
+        """
+        获取状态变更审批模版
+
+        Args:
+            card_id: 卡片 ID
+            target_status: 目标状态码
+
+        Returns:
+            审批模版响应，包含审批流程定义和阶段信息
+        """
+        return self._request(
+            "GET",
+            f"/v1/project/project/card/{card_id}/status/approvalTemplate",
+            params={"targetStatus": target_status}
+        )
+
+    def change_card_status(self, card_id: str, status: str,
+                           approver_usernames: List[str] = None) -> Dict:
+        """
+        变更卡片状态（智能方法，自动处理审批流）
+
+        先尝试直接更新状态，如果需要审批则自动获取审批模版并发起审批。
+
+        Args:
+            card_id: 卡片 ID
+            status: 目标状态码
+            approver_usernames: 审批人用户名列表（当需要审批时必填）
+
+        Returns:
+            操作结果响应
+        """
+        # 先尝试直接更新
+        result = self.update_card_status(card_id, status)
+
+        if result.get("code") == 0:
+            return result
+
+        # 需要审批 (5011)
+        if result.get("code") == 5011:
+            if not approver_usernames:
+                return {
+                    "code": 5011,
+                    "message": "状态流转需要审批，请提供审批人用户名列表 (approver_usernames)"
+                }
+
+            # 获取审批模版
+            template = self.get_status_approval_template(card_id, status)
+            if template.get("code") != 0:
+                return template
+
+            data = template["data"]
+            stages = data.get("stages", [])
+            if not stages:
+                return {"code": -1, "message": "未找到审批阶段"}
+
+            stage = stages[0]
+            stage_id = int(stage["id"])
+            # 审批人来源: approvers 字段（用户组名）
+            group_name = stage["approvers"][0] if stage.get("approvers") else ""
+
+            return self.submit_status_approval(
+                card_id, status, stage_id, group_name, approver_usernames
+            )
+
+        # 其他错误直接返回
+        return result
+
+    def update_card_field(self, card_id: str, field: str, value: Any) -> Dict:
+        """
+        更新卡片单个字段
+
+        Args:
+            card_id: 卡片 ID
+            field: 字段名，常用字段:
+                - "title": 标题
+                - "content": 描述
+                - "start_date": 开始日期（毫秒时间戳字符串）
+                - "end_date": 结束日期（毫秒时间戳字符串）
+                - "owner_users": 负责人列表
+                - "custom_4_keyword": 业务负责人/审批人列表
+                - "estimate_workload": 预估工时
+            不支持修改: 卡片类型/编号/父卡片/是否删除
+
+        Returns:
+            更新结果响应
+        """
+        return self._request(
+            "PUT",
+            f"/v1/project/project/card/{card_id}/fields/{field}",
+            json_data=value
+        )
+
+    def update_card_fields(self, card_id: str, fields: Dict[str, Any]) -> Dict:
+        """
+        更新卡片多个字段
+
+        Args:
+            card_id: 卡片 ID
+            fields: 要更新的字段字典
+
+        Returns:
+            更新结果响应
+        """
+        return self._request(
+            "PUT",
+            f"/v1/project/project/card/{card_id}/fields",
+            json_data=fields
+        )
 
     def get_card_events(self, card_id: str) -> Dict:
         """
@@ -592,16 +915,169 @@ class EZoneAPI:
         return self._request(
             "POST",
             "/v1/project/project/card/searchByProject",
-            params={"projectId": project_id},
+            params={"projectId": project_id,
+                    "pageNumber": page, "pageSize": page_size},
             json_data={
-                "pageNumber": page,
-                "pageSize": page_size,
                 "fields": ["title", "type", "status", "seq_num", "parent_id"],
                 "filters": [
                     {"field": "parent_id", "operator": "=", "value": parent_id}
                 ],
                 "sorts": [{"field": "create_time", "order": "desc"}]
             }
+        )
+
+    def search_cards_cross_project(self, page: int = 1,
+                                    page_size: int = 20,
+                                    sort_by: str = "create_time",
+                                    sort_order: str = "desc",
+                                    fields: List[str] = None,
+                                    queries: List[Dict] = None) -> Dict:
+        """
+        跨项目搜索卡片（搜索用户有权限的所有项目）
+
+        Args:
+            page: 页码
+            page_size: 每页数量
+            sort_by: 排序字段
+            sort_order: 排序方向
+            fields: 返回字段列表
+            queries: 过滤条件列表（隐式 AND）
+
+        Returns:
+            卡片列表响应（与 search_cards 格式一致）
+
+        注意:
+            分页参数放在 query params 中才生效。
+        """
+        if fields is None:
+            fields = ["title", "type", "status", "last_modify_time",
+                      "last_modify_user", "create_time", "create_user",
+                      "owner_users", "content", "seq_num", "project_id",
+                      "start_date", "end_date"]
+
+        body = {
+            "fields": fields,
+            "sorts": [{"field": sort_by, "order": sort_order}]
+        }
+        if queries:
+            body["queries"] = queries
+
+        return self._request(
+            "POST",
+            "/v1/project/project/card/searchByMemberProject",
+            params={"pageNumber": page, "pageSize": page_size},
+            json_data=body
+        )
+
+    def search_all_cards(self, project_id: str = None,
+                         sort_by: str = "create_time",
+                         sort_order: str = "desc",
+                         fields: List[str] = None,
+                         queries: List[Dict] = None,
+                         cross_project: bool = False,
+                         page_size: int = 100,
+                         max_pages: int = 50,
+                         filter_deleted: bool = True) -> List[Dict]:
+        """
+        自动翻页获取全部卡片
+
+        Args:
+            project_id: 项目 ID（cross_project=False 时必填）
+            sort_by: 排序字段
+            sort_order: 排序方向
+            fields: 返回字段列表
+            queries: 过滤条件列表
+            cross_project: True 使用跨项目搜索，False 使用单项目搜索
+            page_size: 每页数量（默认100，减少请求次数）
+            max_pages: 最大翻页数（安全上限，默认50，最多5000条）
+            filter_deleted: 是否过滤已删除的幽灵记录（默认True）
+
+        Returns:
+            所有卡片列表 [{"id": "...", "card": {...}}, ...]
+        """
+        all_items = []
+        for page in range(1, max_pages + 1):
+            if cross_project:
+                result = self.search_cards_cross_project(
+                    page=page, page_size=page_size,
+                    sort_by=sort_by, sort_order=sort_order,
+                    fields=fields, queries=queries
+                )
+            else:
+                if not project_id:
+                    raise ValueError("单项目搜索需要提供 project_id")
+                result = self.search_cards(
+                    project_id=project_id, page=page, page_size=page_size,
+                    sort_by=sort_by, sort_order=sort_order,
+                    fields=fields, queries=queries
+                )
+
+            if result.get("code") != 0:
+                break
+
+            items = result.get("data", {}).get("list", [])
+            if not items:
+                break
+
+            if filter_deleted:
+                items = [item for item in items
+                         if item.get("card", {}).get("seq_num") is not None]
+
+            all_items.extend(items)
+
+            total = int(result.get("data", {}).get("total", 0))
+            if page * page_size >= total:
+                break
+
+        return all_items
+
+    def search_cards_by_creators_and_time(
+        self,
+        creators: List[str],
+        date_from: str,
+        date_to: str,
+        card_type: str = "story",
+        cross_project: bool = True,
+        time_field: str = "create_time",
+        fields: List[str] = None
+    ) -> List[Dict]:
+        """
+        按创建者和时间范围搜索卡片（一站式便捷方法）
+
+        Args:
+            creators: 创建者用户名列表
+            date_from: 起始日期 "YYYY-MM-DD"
+            date_to: 结束日期 "YYYY-MM-DD"（包含当天，自动设为 23:59:59）
+            card_type: 卡片类型（默认 "story"）
+            cross_project: 是否跨项目搜索（默认 True）
+            time_field: 时间过滤字段（默认 "create_time"，可选 "start_date"、"end_date"）
+            fields: 返回字段列表
+
+        Returns:
+            匹配的卡片列表
+
+        Example:
+            cards = api.search_cards_by_creators_and_time(
+                creators=["yi.chen", "yanshuang.liu"],
+                date_from="2026-01-31",
+                date_to="2026-02-28",
+                card_type="story",
+                cross_project=True
+            )
+        """
+        start_ts = self.date_to_timestamp(date_from)
+        end_ts = self.date_to_timestamp(f"{date_to} 23:59:59")
+
+        queries = [
+            self.query_eq("type", card_type),
+            self.query_in("create_user", creators),
+            self.query_between(time_field, start_ts, end_ts),
+        ]
+
+        return self.search_all_cards(
+            queries=queries,
+            cross_project=cross_project,
+            fields=fields
         )
 
     def upload_attachment(
